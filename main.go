@@ -88,7 +88,7 @@ func initInit() {
 		Port = "8080" // Default to port 8080 if not specified
 	}
 
-	for i := 1; i < 100; i++ {
+	for i := 0; i < 100; i++ {
 		repo := os.Getenv(fmt.Sprintf("REPO_PATH%d", i))
 		if repo == "" {
 			break
