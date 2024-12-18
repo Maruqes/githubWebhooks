@@ -16,6 +16,7 @@ import (
 
 var RepoPath string
 var Secret string
+var Port string
 
 // Payload represents the structure of the GitHub webhook payload
 type Payload struct {
@@ -40,14 +41,22 @@ func initInit() {
 		fmt.Println("SECRET environment variable is required")
 		os.Exit(1)
 	}
+
+	Port = os.Getenv("PORT")
+	if Port == "" {
+		Port = "8080" // Default to port 8080 if not specified
+	}
 }
 
 func main() {
 	initInit()
 	http.HandleFunc("/webhook", handleWebhook)
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
-	fmt.Println("Listening on port 8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	fmt.Printf("Listening on port %s...\n", Port)
+	if err := http.ListenAndServe(":"+Port, nil); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 	}
 }
