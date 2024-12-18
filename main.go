@@ -208,18 +208,28 @@ func secureCompare(a, b string) bool {
 func pullChanges(repoName string) error {
 	for _, repo := range repos {
 		if repoName == repo.Name {
-			cmd := exec.Command("git", "-C", repo.Path, "pull", "--force", "origin", "main")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				return err
+			// Reset local changes to ensure a clean state
+			resetCmd := exec.Command("git", "-C", repo.Path, "reset", "--hard", "HEAD")
+			resetCmd.Stdout = os.Stdout
+			resetCmd.Stderr = os.Stderr
+			if err := resetCmd.Run(); err != nil {
+				return fmt.Errorf("failed to reset changes: %v", err)
 			}
+
+			// Pull the latest changes
+			pullCmd := exec.Command("git", "-C", repo.Path, "pull", "--force", "origin", "main")
+			pullCmd.Stdout = os.Stdout
+			pullCmd.Stderr = os.Stderr
+			if err := pullCmd.Run(); err != nil {
+				return fmt.Errorf("failed to pull changes: %v", err)
+			}
+
 			// Execute the function after git pull is done
 			restartPm2(repo.Name)
 			return nil
 		}
 	}
-	return fmt.Errorf("Repository not found")
+	return fmt.Errorf("repository not found")
 }
 
 func restartPm2(name string) {
