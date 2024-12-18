@@ -211,8 +211,22 @@ func pullChanges(repoName string) error {
 			cmd := exec.Command("git", "-C", repo.Path, "pull", "origin", "main")
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
-			return cmd.Run()
+			if err := cmd.Run(); err != nil {
+				return err
+			}
+			// Execute the function after git pull is done
+			restartPm2(repo.Name)
+			return nil
 		}
 	}
 	return fmt.Errorf("Repository not found")
+}
+
+func restartPm2(name string) {
+	cmd := exec.Command("pm2", "restart", name)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("Error restarting pm2: %v\n", err)
+	}
 }
