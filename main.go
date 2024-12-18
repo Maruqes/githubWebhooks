@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 
@@ -18,9 +19,48 @@ var RepoPath string
 var Secret string
 var Port string
 
-// Payload represents the structure of the GitHub webhook payload
-type Payload struct {
-	Ref string `json:"ref"`
+type PushEvent struct {
+	Ref        string `json:"ref"`
+	Before     string `json:"before"`
+	After      string `json:"after"`
+	Repository struct {
+		ID       int    `json:"id"`
+		NodeID   string `json:"node_id"`
+		Name     string `json:"name"`
+		FullName string `json:"full_name"`
+		Private  bool   `json:"private"`
+		Owner    struct {
+			Name      string `json:"name"`
+			Email     string `json:"email"`
+			Login     string `json:"login"`
+			ID        int    `json:"id"`
+			NodeID    string `json:"node_id"`
+			AvatarURL string `json:"avatar_url"`
+			URL       string `json:"url"`
+			HtmlURL   string `json:"html_url"`
+		} `json:"owner"`
+		HtmlURL string `json:"html_url"`
+		URL     string `json:"url"`
+	} `json:"repository"`
+	Pusher struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	} `json:"pusher"`
+	HeadCommit struct {
+		ID      string `json:"id"`
+		Message string `json:"message"`
+		Author  struct {
+			Name     string `json:"name"`
+			Email    string `json:"email"`
+			Username string `json:"username"`
+		} `json:"author"`
+		Committer struct {
+			Name     string `json:"name"`
+			Email    string `json:"email"`
+			Username string `json:"username"`
+		} `json:"committer"`
+		Modified []string `json:"modified"`
+	} `json:"head_commit"`
 }
 
 func initInit() {
@@ -62,7 +102,7 @@ func main() {
 }
 
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
-	// Read the request body once
+	// Read the request body
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
@@ -70,20 +110,38 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
+	// Check Content-Type and decode payload if necessary
+	var payloadBytes []byte
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "application/x-www-form-urlencoded" {
+		// Parse URL-encoded payload
+		values, err := url.ParseQuery(string(bodyBytes))
+		if err != nil {
+			http.Error(w, "Invalid URL-encoded payload", http.StatusBadRequest)
+			return
+		}
+		payload := values.Get("payload")
+		payloadBytes = []byte(payload)
+	} else if contentType == "application/json" {
+		payloadBytes = bodyBytes
+	} else {
+		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
+		return
+	}
+
 	// Validate the signature
 	signature := r.Header.Get("X-Hub-Signature-256")
-	if !validateSignature(bodyBytes, signature) {
-		http.Error(w, "Invalid signature", http.StatusForbidden)
+	verifySignature(payloadBytes, signature)
+
+	// Parse the JSON payload
+	var payload PushEvent
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		fmt.Printf("Error parsing JSON: %v\n", err)
 		return
 	}
 
-	// Parse the payload
-	var payload Payload
-	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
-		return
-	}
-
+	fmt.Println(payload.Repository.Name)
 	// Check if the push is to the main branch
 	if payload.Ref == "refs/heads/main" {
 		fmt.Println("Received push to main branch. Pulling changes...")
@@ -98,11 +156,38 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func validateSignature(body []byte, signature string) bool {
-	mac := hmac.New(sha256.New, []byte(Secret))
-	mac.Write(body)
-	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
-	return hmac.Equal([]byte(expected), []byte(signature))
+func verifySignature(payloadBody []byte, receivedSignature string) error {
+	// Get the secret token from the environment
+	secretToken := os.Getenv("SECRET_TOKEN")
+	if secretToken == "" {
+		return fmt.Errorf("SECRET_TOKEN is not set in the environment")
+	}
+
+	// Generate the expected signature
+	mac := hmac.New(sha256.New, []byte(secretToken))
+	mac.Write(payloadBody)
+	expectedSignature := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+
+	// Securely compare the received signature with the expected signature
+	if !secureCompare(expectedSignature, receivedSignature) {
+		return fmt.Errorf("signatures didn't match")
+	}
+
+	return nil
+}
+
+func secureCompare(a, b string) bool {
+	// Securely compare two strings to avoid timing attacks
+	if len(a) != len(b) {
+		return false
+	}
+
+	var result byte
+	for i := 0; i < len(a); i++ {
+		result |= a[i] ^ b[i]
+	}
+
+	return result == 0
 }
 
 func pullChanges() error {
