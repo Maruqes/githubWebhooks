@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+
+	"github.com/joho/godotenv"
 )
 
 var RepoPath string
@@ -21,6 +23,12 @@ type Payload struct {
 }
 
 func initInit() {
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Error loading .env file")
+		os.Exit(1)
+	}
+
 	RepoPath = os.Getenv("REPO_PATH")
 	if RepoPath == "" {
 		fmt.Println("REPO_PATH environment variable is required")
