@@ -15,7 +15,12 @@ import (
 var RepoPath string
 var Secret string
 
-func init() {
+// Payload represents the structure of the GitHub webhook payload
+type Payload struct {
+	Ref string `json:"ref"`
+}
+
+func initInit() {
 	RepoPath = os.Getenv("REPO_PATH")
 	if RepoPath == "" {
 		fmt.Println("REPO_PATH environment variable is required")
@@ -29,12 +34,8 @@ func init() {
 	}
 }
 
-// Payload represents the structure of the GitHub webhook payload
-type Payload struct {
-	Ref string `json:"ref"`
-}
-
 func main() {
+	initInit()
 	http.HandleFunc("/webhook", handleWebhook)
 
 	fmt.Println("Listening on port 8080...")
