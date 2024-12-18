@@ -208,7 +208,7 @@ func secureCompare(a, b string) bool {
 func pullChanges(repoName string) error {
 	for _, repo := range repos {
 		if repoName == repo.Name {
-			cmd := exec.Command("git", "-C", repo.Path, "pull", "origin", "main")
+			cmd := exec.Command("git", "-C", repo.Path, "pull", "--force", "origin", "main")
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
