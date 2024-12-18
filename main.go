@@ -11,13 +11,20 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
-var RepoPath string
 var Secret string
 var Port string
+
+type Repo struct {
+	Name string
+	Path string
+}
+
+var repos []Repo
 
 type PushEvent struct {
 	Ref        string `json:"ref"`
@@ -70,12 +77,6 @@ func initInit() {
 		os.Exit(1)
 	}
 
-	RepoPath = os.Getenv("REPO_PATH")
-	if RepoPath == "" {
-		fmt.Println("REPO_PATH environment variable is required")
-		os.Exit(1)
-	}
-
 	Secret = os.Getenv("SECRET")
 	if Secret == "" {
 		fmt.Println("SECRET environment variable is required")
@@ -86,10 +87,25 @@ func initInit() {
 	if Port == "" {
 		Port = "8080" // Default to port 8080 if not specified
 	}
+
+	for i := 1; i < 100; i++ {
+		repo := os.Getenv(fmt.Sprintf("REPO_PATH%d", i))
+		if repo == "" {
+			break
+		}
+		//only get last folder
+		repoName := repo[strings.LastIndex(repo, "/")+1:]
+		repos = append(repos, Repo{
+			Name: repoName,
+			Path: repo,
+		})
+
+	}
 }
 
 func main() {
 	initInit()
+
 	http.HandleFunc("/webhook", handleWebhook)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -141,11 +157,10 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println(payload.Repository.Name)
 	// Check if the push is to the main branch
 	if payload.Ref == "refs/heads/main" {
 		fmt.Println("Received push to main branch. Pulling changes...")
-		if err := pullChanges(); err != nil {
+		if err := pullChanges(payload.Repository.Name); err != nil {
 			http.Error(w, "Failed to pull changes", http.StatusInternalServerError)
 			fmt.Printf("Error pulling changes: %v\n", err)
 			return
@@ -190,9 +205,14 @@ func secureCompare(a, b string) bool {
 	return result == 0
 }
 
-func pullChanges() error {
-	cmd := exec.Command("git", "-C", RepoPath, "pull", "origin", "main")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+func pullChanges(repoName string) error {
+	for _, repo := range repos {
+		if repoName == repo.Name {
+			cmd := exec.Command("git", "-C", repo.Path, "pull", "origin", "main")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			return cmd.Run()
+		}
+	}
+	return fmt.Errorf("Repository not found")
 }
