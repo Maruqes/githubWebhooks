@@ -62,16 +62,24 @@ func main() {
 }
 
 func handleWebhook(w http.ResponseWriter, r *http.Request) {
-	// Validate the request
+	// Read the request body once
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+		return
+	}
+	defer r.Body.Close()
+
+	// Validate the signature
 	signature := r.Header.Get("X-Hub-Signature-256")
-	if !validateSignature(r.Body, signature) {
+	if !validateSignature(bodyBytes, signature) {
 		http.Error(w, "Invalid signature", http.StatusForbidden)
 		return
 	}
 
 	// Parse the payload
 	var payload Payload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
 		http.Error(w, "Invalid payload", http.StatusBadRequest)
 		return
 	}
@@ -90,10 +98,9 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func validateSignature(body io.Reader, signature string) bool {
+func validateSignature(body []byte, signature string) bool {
 	mac := hmac.New(sha256.New, []byte(Secret))
-	data, _ := io.ReadAll(body)
-	mac.Write(data)
+	mac.Write(body)
 	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
 	return hmac.Equal([]byte(expected), []byte(signature))
 }
