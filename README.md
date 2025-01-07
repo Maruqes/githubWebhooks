@@ -35,7 +35,7 @@ GitHub Webhooks Auto-Updater is a Golang application that listens for GitHub web
    - **Payload URL**: `http://<your-domain>:<port>/webhook`
    - **Content type**: `application/x-www-form-urlencoded`
    - **Secret**: Use the value of the `SECRET` field from your `.env` file.
-4. Select the events you want to send or choose `Send me everything`.
+4. Select the events you want to send or choose `Send me everything`, only tested with `only the push`.
 5. Click **Add webhook**.
 
 ## How It Works
