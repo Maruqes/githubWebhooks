@@ -28,6 +28,8 @@ GitHub Webhooks Auto-Updater is a Golang application that listens for GitHub web
 
 4. The server will listen on the port specified in the `.env` file. Ensure that your GitHub repository's webhooks are configured to send events to `http://<your-domain>:<port>/webhook`.
 
+5. Configure pm2 processes **THE PROCESS NAMES SHOULD BE THE SAME AS THE REPOSITORY NAME**, this project restarts the process on pm2 based on the name
+   
 ## Setting Up Webhooks on GitHub
 1. On GitHub, go to the settings page of your repository.
 2. Click **Webhooks** > **Add webhook**.
